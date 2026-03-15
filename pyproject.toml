@@ -1,0 +1,16 @@
+[project]
+name = "chat"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai-agents>=0.12.2",
+]
+
+[project.scripts]
+chat = "chat.main:main"   # ← this creates the `chat` command
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
