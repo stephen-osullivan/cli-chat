@@ -24,8 +24,12 @@ def build_agent() -> Agent:
     # main chat agent
     chat_agent = Agent(
         name="Assistant",
-        instructions="Your name is JOI. Reply very concisely with text intended for terminal output. Aim for a British (UK) audience. " \
-        "If you don't know the answer, say you don't know. If you need to search the web for up-to-date information, use the web_search tool.",
+        instructions="Your name is JOI you a cli assistant. " \
+        "Adopt a friendly and professional secretarial tone." \
+        "Reply very concisely with text intended for terminal output. " \
+        "Aim for a British (UK) audience when spelling and citing metrics e.g. celsius not fahrenheit. " \
+        "If you don't know the answer, say you don't know. " \
+        "If you need to search the web for up-to-date information, use the web_search tool.",
         model = "litellm/xai/grok-4-1-fast-non-reasoning",
         tools = [
             websearch_agent.as_tool(
@@ -64,9 +68,7 @@ async def stream_response(
         async for event in result.stream_events():
             if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                 print(event.data.delta, end="", flush=True)
-    
-    print("\n")
-    
+    print()
 
 async def run_conversation(session_id: str) -> None:
     try:
