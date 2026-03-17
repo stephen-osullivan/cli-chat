@@ -3,7 +3,8 @@ import sys
 from argparse import ArgumentParser
 import asyncio
 
-from agents import Agent, Runner, RunConfig, SQLiteSession, SessionSettings
+from agents import Agent, Runner, RunConfig, SQLiteSession, SessionSettings, WebSearchTool
+from openai.types.responses import ResponseTextDeltaEvent
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -13,10 +14,29 @@ logger = logging.getLogger(__name__)
 
 
 def build_agent() -> Agent:
-    return Agent(
-        name="Assistant",
-        instructions="Your name is JOI. Reply very concisely.",
+    # openai agent for web search, grok agent for conversation. Grok can call the openai agent as a tool to get up-to-date information when needed.
+    websearch_agent = Agent(
+        name="Web Searcher",
+        instructions="Use this tool to search the web for up-to-date information. Input is a search query. Output is the search results.",
+        model = "gpt-4o",
+        tools = [WebSearchTool()]
     )
+    # main chat agent
+    chat_agent = Agent(
+        name="Assistant",
+        instructions="Your name is JOI. Reply very concisely with text intended for terminal output. Aim for a British (UK) audience. " \
+        "If you don't know the answer, say you don't know. If you need to search the web for up-to-date information, use the web_search tool.",
+        model = "litellm/xai/grok-4-1-fast-non-reasoning",
+        tools = [
+            websearch_agent.as_tool(
+                tool_name="web_search", 
+                tool_description="Use this tool to search the web for up-to-date information. Input is a search query. Output is the search results.",
+                needs_approval=False,
+            )
+        ],
+    )
+    return chat_agent
+
 
 async def stream_response(
     agent: Agent,
@@ -31,12 +51,22 @@ async def stream_response(
         Exception: For unexpected errors during streaming.
     """
     print("JOI: ", end="", flush=True)
-    stream = Runner.run_streamed(agent, input=user_input, session=session, run_config=run_config)
-    async for event in stream.stream_events():
-        if event.type == "raw_response_event" and hasattr(event.data, "delta"):
+    response = Runner.run_streamed(agent, input=user_input, session=session, run_config=run_config)
+    async for event in response.stream_events():
+        if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
             print(event.data.delta, end="", flush=True)
-    print("\n")
 
+    if response.interruptions:
+        state = response.to_state()
+        for interruption in response.interruptions:
+            state.approve(interruption)
+        result = Runner.run_streamed(agent, state)
+        async for event in result.stream_events():
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                print(event.data.delta, end="", flush=True)
+    
+    print("\n")
+    
 
 async def run_conversation(session_id: str) -> None:
     try:
@@ -87,4 +117,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import os
+    print(os.getcwd())
     main()
